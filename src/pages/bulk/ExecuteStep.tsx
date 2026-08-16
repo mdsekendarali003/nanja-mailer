@@ -160,7 +160,7 @@ export function ExecuteStep({
               return
             }
             try {
-              const result = await apiPost<{ results: { id: string; ok: boolean; invoiceId?: string; invoiceNumber?: string; error?: string }[] }>('/api/ninja/invoices-create', {
+              const result = await apiPost<{ results: { id: string; ok: boolean; invoiceId?: string; invoiceNumber?: string; error?: { error: string } }[] }>('/api/ninja/invoices-create', {
                 items: [item],
               })
               const r = result.results[0]
@@ -170,8 +170,9 @@ export function ExecuteStep({
                 if (item.autoNumbered) bumpCount(item.clientId)
                 log('success', `${customerOf(target.id)} — invoice ${r.invoiceNumber ?? '?'} (${r.invoiceId ?? 'no id'}) created`)
               } else {
-                update(target.id, { status: 'error', message: r?.error ?? 'Create failed' })
-                log('error', `${customerOf(target.id)} — create failed: ${r?.error ?? 'unknown error'}`)
+                const errorMessage = r?.error?.error ?? 'unknown error'
+                update(target.id, { status: 'error', message: errorMessage })
+                log('error', `${customerOf(target.id)} — create failed: ${errorMessage}`)
                 failed++
               }
             } catch (err) {
@@ -190,7 +191,7 @@ export function ExecuteStep({
               return
             }
             try {
-              const result = await apiPost<{ results: { id: string; ok: boolean; error?: string }[] }>('/api/ninja/invoices-actions', {
+              const result = await apiPost<{ results: { id: string; ok: boolean; error?: { error: string } }[] }>('/api/ninja/invoices-actions', {
                 action,
                 items: itemsFor,
               })
@@ -200,8 +201,9 @@ export function ExecuteStep({
                 if (p === 'mark_sent') log('success', `${customerOf(target.id)} — marked as sent`)
                 else log('success', `${customerOf(target.id)} — emailed`)
               } else {
-                update(target.id, { status: 'error', message: r?.error ?? 'Failed' })
-                log('error', `${customerOf(target.id)} — ${p === 'mark_sent' ? 'mark-sent' : 'email'} failed: ${r?.error ?? 'unknown error'}`)
+                const errorMessage = r?.error?.error ?? 'unknown error'
+                update(target.id, { status: 'error', message: errorMessage })
+                log('error', `${customerOf(target.id)} — ${p === 'mark_sent' ? 'mark-sent' : 'email'} failed: ${errorMessage}`)
                 failed++
               }
             } catch (err) {

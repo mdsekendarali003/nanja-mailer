@@ -45,7 +45,7 @@ const handler: ApiHandler = async (req, res) => {
       } else {
         result = await ninjaApiCallWithRetry(config, '/emails', {
           method: 'POST',
-          body: { entity: 'invoice', entity_id: item.invoiceId },
+          body: { entity: 'invoice', entity_id: item.invoiceId, template: 'email_template_invoice' },
         })
       }
       if (result.status === 200) {
