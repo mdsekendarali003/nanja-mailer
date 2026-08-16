@@ -72,3 +72,7 @@ export function bumpCount(clientId: string): number {
 export function formatInvoiceNumber(prefix: string, n: number): string {
   return `${prefix}${String(n).padStart(4, '0')}`
 }
+
+export function nextInvoiceNumber(clientId: string, prefix: string): string {
+  return formatInvoiceNumber(prefix, (readCounts()[clientId] ?? 0) + 1)
+}

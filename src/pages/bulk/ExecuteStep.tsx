@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { InvoiceTemplate } from '../../../shared/types.js'
 import { apiPost, chunk } from '../../lib/api.js'
-import { bumpCount, formatInvoiceNumber } from '../../lib/numbering.js'
-import type { InvoiceNumbering } from '../../lib/numbering.js'
+import { bumpCount, nextInvoiceNumber, readCounts, writeCounts, type InvoiceNumbering } from '../../lib/numbering.js'
 import { clearExecuteStatus, loadExecuteStatus, saveExecuteStatus } from '../../lib/wizard-session.js'
 import { useToast } from '../../context/ToastContext.js'
-import { buildCreateItems, type ExecuteItemStatus, type ExecuteStatusItem, type WizardRecord } from '../../lib/wizard.js'
+import { buildCreateItems, type CreateItem, type ExecuteItemStatus, type ExecuteStatusItem, type WizardRecord } from '../../lib/wizard.js'
 import { Button, Card, EmptyState, Spinner } from '../../components/ui.js'
 
 type Phase = 'create' | 'mark_sent' | 'email'
@@ -87,13 +86,18 @@ export function ExecuteStep({
     return records.find((r) => r.record.id === id)?.record.customerName ?? id
   }
 
+  const effectiveNumber = (item: CreateItem): string | undefined => {
+    if (item.autoNumbered && numbering.enabled) return nextInvoiceNumber(item.clientId, numbering.prefix.trim() || 'INV')
+    return item.payload.number
+  }
+
   useEffect(() => {
     const saved = loadExecuteStatus()
     if (!saved || saved.statuses.length === 0) return
     const candidates = items.filter((i) => {
       const s = statusesRef.current.find((x) => x.id === i.id)
       const w = records.find((r) => r.record.id === i.id)
-      return s && s.status === 'pending' && !w?.invoiceId && !!i.payload.number && !s.message?.startsWith('Checked')
+      return s && s.status === 'pending' && !w?.invoiceId && !!effectiveNumber(i) && !s.message?.startsWith('Checked')
     })
     if (candidates.length === 0) return
     let cancelled = false
@@ -102,7 +106,7 @@ export function ExecuteStep({
     ;(async () => {
       try {
         const result = await apiPost<{ results: { key: string; found: boolean; checked: boolean; invoiceId?: string }[] }>('/api/ninja/invoices-check', {
-          items: candidates.map((i) => ({ key: i.id, clientId: i.clientId, number: i.payload.number as string })),
+          items: candidates.map((i) => ({ key: i.id, clientId: i.clientId, number: effectiveNumber(i) as string })),
         })
         if (cancelled) return
         for (const r of result.results) {
@@ -159,11 +163,17 @@ export function ExecuteStep({
               failed++
               return
             }
+            const autoNumbered = item.autoNumbered === true && numbering.enabled
+            const prefix = numbering.prefix.trim() || 'INV'
+            const originalCount = autoNumbered ? readCounts()[item.clientId] ?? 0 : null
+            let itemToSend = item
+            if (autoNumbered) {
+              itemToSend = { ...item, payload: { ...item.payload, number: nextInvoiceNumber(item.clientId, prefix) } }
+            }
+            let bumpedValue: number | null = null
+            let errorMessage = 'unknown error'
             try {
-              let itemToSend = item
-              let didBump = false
-              let errorMessage = 'unknown error'
-              for (let attempt = 0; attempt < 3; attempt++) {
+              for (let attempt = 0; attempt < 5; attempt++) {
                 const result = await apiPost<{ results: { id: string; ok: boolean; invoiceId?: string; invoiceNumber?: string; error?: { error: string } }[] }>('/api/ninja/invoices-create', {
                   items: [itemToSend],
                 })
@@ -171,26 +181,29 @@ export function ExecuteStep({
                 if (r?.ok) {
                   update(target.id, { status: 'created', invoiceId: r.invoiceId, message: `Invoice ${r.invoiceNumber ?? ''} created` })
                   patchRecord(target.id, r.invoiceId ?? '')
-                  if (itemToSend.autoNumbered && !didBump) bumpCount(itemToSend.clientId)
+                  if (autoNumbered) bumpCount(item.clientId)
                   log('success', `${customerOf(target.id)} — invoice ${r.invoiceNumber ?? '?'} (${r.invoiceId ?? 'no id'}) created`)
-                  break
+                  return
                 }
                 errorMessage = r?.error?.error ?? 'unknown error'
-                if (attempt < 2 && itemToSend.autoNumbered && /already been taken/i.test(errorMessage)) {
-                  didBump = true
-                  const next = bumpCount(itemToSend.clientId)
-                  itemToSend = { ...itemToSend, payload: { ...itemToSend.payload, number: formatInvoiceNumber(numbering.prefix, next) } }
-                  log('info', `${customerOf(target.id)} — number taken, retrying as ${itemToSend.payload.number}…`)
+                if (autoNumbered && /already been taken/i.test(errorMessage)) {
+                  bumpedValue = bumpCount(item.clientId)
+                  itemToSend = { ...itemToSend, payload: { ...itemToSend.payload, number: nextInvoiceNumber(item.clientId, prefix) } }
+                  log('info', `${customerOf(target.id)} — number ${itemToSend.payload.number} taken, moving to the next…`)
                   continue
                 }
                 break
               }
-              if (statusesRef.current.find((s) => s.id === target.id)?.status !== 'created') {
-                update(target.id, { status: 'error', message: errorMessage })
-                log('error', `${customerOf(target.id)} — create failed: ${errorMessage}`)
-                failed++
+              if (bumpedValue !== null && readCounts()[item.clientId] === bumpedValue) {
+                writeCounts({ ...readCounts(), [item.clientId]: originalCount ?? 0 })
               }
+              update(target.id, { status: 'error', message: errorMessage })
+              log('error', `${customerOf(target.id)} — create failed: ${errorMessage}`)
+              failed++
             } catch (err) {
+              if (bumpedValue !== null && readCounts()[item.clientId] === bumpedValue) {
+                writeCounts({ ...readCounts(), [item.clientId]: originalCount ?? 0 })
+              }
               update(target.id, { status: 'error', message: err instanceof Error ? err.message : 'Create failed' })
               log('error', `${customerOf(target.id)} — create failed: ${err instanceof Error ? err.message : 'unknown error'}`)
               failed++
