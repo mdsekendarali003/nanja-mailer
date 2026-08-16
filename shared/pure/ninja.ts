@@ -36,10 +36,12 @@ export function buildInvoicePayload(record: InvoiceRecordData, template: Invoice
     const payload: NinjaLineItemPayload = {
       cost: item.unitAmount,
       quantity: item.quantity,
-      notes: item.description,
+      notes: '',
     }
-    const productKey = item.accountCode?.trim() || template?.accountCode?.trim()
-    if (productKey) payload.product_key = productKey
+    const itemName = item.description.trim()
+    if (itemName) payload.product_key = itemName
+    const accountCode = item.accountCode?.trim() || template?.accountCode?.trim()
+    if (accountCode) payload.income_account_id = accountCode
     return payload
   })
   const payload: NinjaInvoicePayload = {
@@ -49,7 +51,10 @@ export function buildInvoicePayload(record: InvoiceRecordData, template: Invoice
   }
   if (record.invoiceNumber?.trim()) payload.number = record.invoiceNumber.trim()
   if (record.reference?.trim()) payload.po_number = record.reference.trim()
-  if (template?.supportMessage?.trim()) payload.terms = template.supportMessage.trim()
+  if (template?.supportMessage?.trim()) {
+    const supportNumber = record.supportNumber?.trim() || template.supportNumber?.trim() || ''
+    payload.terms = template.supportMessage.trim().replace(/\{\{\s*support_number\s*\}\}/g, supportNumber)
+  }
   if (record.dueDate?.trim()) {
     const due = isoDate(record.dueDate)
     if (due) payload.due_date = due

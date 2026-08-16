@@ -131,8 +131,8 @@ export function RecordsStep({
             onChange={(e) => setBulkDescription(e.target.value)}
             placeholder="e.g. Monthly hosting"
           />
-          <Input label="Quantity" type="number" min={0} step="any" value={bulkQuantity} onChange={(e) => setBulkQuantity(e.target.value)} placeholder="1" />
           <Input label="Unit price" type="number" min={0} step="0.01" value={bulkUnitPrice} onChange={(e) => setBulkUnitPrice(e.target.value)} placeholder="49.00" />
+          <Input label="Quantity" type="number" min={0} step="any" value={bulkQuantity} onChange={(e) => setBulkQuantity(e.target.value)} placeholder="1" />
           <div className="flex items-end">
             <Button
               variant="secondary"
@@ -164,7 +164,7 @@ export function RecordsStep({
             onChange={(e) => setNumbering((prev) => ({ ...prev, enabled: e.target.checked }))}
             label={
               <>
-                Auto-number invoices per client (e.g. <span className="font-mono">INV0001</span>, <span className="font-mono">INV0002</span>, …)
+                Auto-assign a unique random invoice number to every invoice (e.g. <span className="font-mono">INV-8QK3M2X9</span>)
               </>
             }
           />
@@ -176,8 +176,7 @@ export function RecordsStep({
               className="w-32"
             />
             <p className="max-w-md text-xs text-slate-400">
-              Each client's invoices are numbered in its own sequence (INV0001, INV0002, …). Mailflow remembers how many invoices each account already has and
-              continues from there.
+              Every email gets its own randomly generated number, so nothing can ever clash with an existing invoice in Invoice Ninja.
             </p>
           </div>
         </div>
@@ -220,6 +219,7 @@ export function RecordsStep({
                   <th className="px-3 py-2 w-28">Account code</th>
                   <th className="px-3 py-2 w-28">PO/Ref #</th>
                   <th className="px-3 py-2 w-32">Invoice #</th>
+                  <th className="px-3 py-2 w-36">Support #</th>
                   <th className="px-3 py-2 w-32">Date</th>
                   <th className="px-3 py-2 w-32">Status</th>
                 </tr>
@@ -249,6 +249,14 @@ export function RecordsStep({
                         placeholder="—"
                         onChange={(e) => setRecords(editRecord(records, record.id, { invoiceNumber: e.target.value || undefined }))}
                         className="w-28"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <Input
+                        value={record.supportNumber ?? ''}
+                        placeholder="—"
+                        onChange={(e) => setRecords(editRecord(records, record.id, { supportNumber: e.target.value || undefined }))}
+                        className="w-32"
                       />
                     </td>
                     <td className="px-3 py-1.5">
@@ -299,7 +307,7 @@ export function RecordsStep({
                   ))}
                   {record.errors.length > 0 && (
                     <tr className="border-t border-red-100">
-                      <td colSpan={10} className="px-3 py-1.5 text-xs text-red-600">
+                      <td colSpan={11} className="px-3 py-1.5 text-xs text-red-600">
                         {record.errors.join(' · ')}
                       </td>
                     </tr>

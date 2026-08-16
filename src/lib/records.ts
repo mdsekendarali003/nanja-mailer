@@ -7,7 +7,7 @@ export function validateRecord(record: InvoiceRecordData): string[] {
   record.lineItems.forEach((item, i) => {
     if (!item.description.trim()) errors.push(`Line ${i + 1}: description is required`)
     if (!(item.quantity > 0)) errors.push(`Line ${i + 1}: quantity must be greater than 0`)
-    if (!Number.isFinite(item.unitAmount)) errors.push(`Line ${i + 1}: unit price must be a number`)
+    if (!(item.unitAmount > 0)) errors.push(`Line ${i + 1}: unit price must be greater than 0`)
   })
   return errors
 }

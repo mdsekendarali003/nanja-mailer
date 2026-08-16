@@ -1,7 +1,7 @@
 import type { ClientMatchState, InvoiceRecordData, InvoiceTemplate, NinjaInvoicePayload } from '../../shared/types.js'
 import { buildInvoicePayload } from '../../shared/pure/ninja.js'
 import { validateRecord } from './records.js'
-import { formatInvoiceNumber, readCounts, type InvoiceNumbering } from './numbering.js'
+import { randomInvoiceNumber, type InvoiceNumbering } from './numbering.js'
 
 export interface WizardRecord {
   record: InvoiceRecordData
@@ -59,14 +59,17 @@ export function assignClient(records: WizardRecord[], id: string, state: Partial
   })
 }
 
-export function assignInvoiceNumbers(items: CreateItem[], counts: Record<string, number>, prefix: string): CreateItem[] {
-  const assigned = new Map<string, number>()
+export function assignInvoiceNumbers(items: CreateItem[], _counts: Record<string, number>, prefix: string): CreateItem[] {
+  const used = new Set<string>()
+  const make = (): string => {
+    let number = randomInvoiceNumber(prefix)
+    while (used.has(number)) number = randomInvoiceNumber(prefix)
+    used.add(number)
+    return number
+  }
   return items.map((item) => {
     if (item.payload.number) return item
-    const base = Math.max(counts[item.clientId] ?? 0, assigned.get(item.clientId) ?? 0)
-    const next = base + 1
-    assigned.set(item.clientId, next)
-    return { ...item, payload: { ...item.payload, number: formatInvoiceNumber(prefix, next) }, autoNumbered: true }
+    return { ...item, payload: { ...item.payload, number: make() }, autoNumbered: true }
   })
 }
 
@@ -83,7 +86,7 @@ export function buildCreateItems(
   }
   if (numbering?.enabled) {
     const prefix = numbering.prefix.trim() || 'INV'
-    return assignInvoiceNumbers(items, readCounts(), prefix)
+    return assignInvoiceNumbers(items, {}, prefix)
   }
   return items
 }

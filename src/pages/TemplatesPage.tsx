@@ -105,9 +105,15 @@ export default function TemplatesPage() {
                 placeholder="e.g. 4100"
               />
               <TextArea label="Support message" value={draft.supportMessage ?? ''} onChange={(e) => setDraft({ ...draft, supportMessage: e.target.value })} placeholder={'Use {{support_number}}'} />
+              <Input
+                label="Support number"
+                value={draft.supportNumber ?? ''}
+                onChange={(e) => setDraft({ ...draft, supportNumber: e.target.value })}
+                placeholder="e.g. +1 555 000 1234"
+              />
             </div>
             <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Account code is required — every line item needs one. Common codes: 4100 Service Revenue, 4000 Sale of Goods.
+              Account code is optional — stored per line for bookkeeping (not shown on the invoice). Common codes: 4100 Service Revenue, 4000 Sale of Goods.
             </div>
             <div className="mt-4 flex justify-between">
               <Button variant="danger" onClick={() => setDeleteId(draft.id)}>

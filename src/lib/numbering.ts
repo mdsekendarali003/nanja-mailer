@@ -76,3 +76,17 @@ export function formatInvoiceNumber(prefix: string, n: number): string {
 export function nextInvoiceNumber(clientId: string, prefix: string): string {
   return formatInvoiceNumber(prefix, (readCounts()[clientId] ?? 0) + 1)
 }
+
+export function randomInvoiceNumber(prefix: string): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint32Array(8)
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(bytes)
+  }
+  let out = ''
+  for (let i = 0; i < 8; i++) {
+    const value = bytes[i] ?? Math.floor(Math.random() * 0x100000000)
+    out += alphabet[value % alphabet.length]
+  }
+  return `${prefix}-${out}`
+}

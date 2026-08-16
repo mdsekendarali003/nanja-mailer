@@ -99,7 +99,7 @@ export function PreviewStep({
                         Invoice <span className="font-mono text-slate-700">{preview.payload.number}</span>
                         {preview.autoNumbered && <span className="text-slate-400"> (auto)</span>} Â· due{' '}
                         <span className="font-mono text-slate-700">{shortDate(preview.payload.due_date)}</span> Â· terms{' '}
-                        <span className="font-mono text-slate-700">{preview.payload.terms || 'â€”'}</span>
+                        <span className="font-mono text-slate-700">{preview.payload.terms || '—'}</span>
                       </p>
                       <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
                         <table className="w-full text-left">
@@ -116,7 +116,7 @@ export function PreviewStep({
                             {preview.payload.line_items.map((li, i) => (
                               <tr key={i} className="border-t border-slate-100">
                                 <td className="px-2 py-1">{li.notes}</td>
-                                <td className="px-2 py-1 font-mono text-[10px]">{li.product_key || 'â€”'}</td>
+                                <td className="px-2 py-1 font-mono text-[10px]">{li.product_key || '—'}</td>
                                 <td className="px-2 py-1 text-right">{li.quantity}</td>
                                 <td className="px-2 py-1 text-right">{money(li.cost)}</td>
                                 <td className="px-2 py-1 text-right">{money(li.cost * li.quantity)}</td>
@@ -133,7 +133,7 @@ export function PreviewStep({
                       </div>
                     </div>
                   )}
-                  {isUnmatched(w) && <Badge tone="red">No client â€” this invoice will fail. Fix it in the Clients step.</Badge>}
+                  {isUnmatched(w) && <Badge tone="red">No client — this invoice will fail. Fix it in the Clients step.</Badge>}
                 </div>
               )
             })}

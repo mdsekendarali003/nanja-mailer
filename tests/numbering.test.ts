@@ -17,19 +17,25 @@ describe('assignInvoiceNumbers', () => {
     return { id, clientId, payload: { client_id: clientId, date: '2026-08-15', line_items: [], ...(number ? { number } : {}) } }
   }
 
-  it('numbers sequentially per client starting from the stored count', () => {
+  const RANDOM = /^INV-[A-Z0-9]{8}$/
+
+  it('assigns a unique random number to every item', () => {
     const items = [item('a', 'c1'), item('b', 'c1'), item('c', 'c2'), item('d', 'c2'), item('e', 'c1')]
-    const numbered = assignInvoiceNumbers(items, { c1: 7, c2: 0 }, 'INV')
-    expect(numbered.map((i) => i.payload.number)).toEqual(['INV0008', 'INV0009', 'INV0001', 'INV0002', 'INV0010'])
+    const numbered = assignInvoiceNumbers(items, {}, 'INV')
+    const numbers = numbered.map((i) => i.payload.number)
+    expect(numbers.length).toBe(5)
+    expect(new Set(numbers).size).toBe(5)
+    for (const number of numbers) expect(number).toMatch(RANDOM)
     expect(numbered.map((i) => i.autoNumbered)).toEqual([true, true, true, true, true])
   })
 
-  it('keeps explicit numbers untouched and does not consume the sequence', () => {
+  it('keeps explicit numbers untouched and still randomizes the rest', () => {
     const items = [item('a', 'c1', 'PO-1'), item('b', 'c1')]
     const numbered = assignInvoiceNumbers(items, {}, 'INV')
     expect(numbered[0].payload.number).toBe('PO-1')
     expect(numbered[0].autoNumbered).toBeUndefined()
-    expect(numbered[1].payload.number).toBe('INV0001')
+    expect(numbered[1].payload.number).toMatch(RANDOM)
+    expect(numbered[1].autoNumbered).toBe(true)
   })
 })
 
@@ -61,13 +67,15 @@ describe('buildCreateItems', () => {
     expect(items.map((i) => i.payload.number)).toEqual([undefined, undefined])
   })
 
-  it('assigns per-client sequential numbers when enabled', () => {
+  it('assigns unique random numbers when enabled', () => {
     const records = [
       { ...makeWizardRecord(record('A', 'a@x.com')), client: { status: 'matched', clientId: 'c1', source: 'auto' } },
       { ...makeWizardRecord(record('B', 'b@x.com')), client: { status: 'matched', clientId: 'c2', source: 'auto' } },
     ]
     const items = buildCreateItems(records, template, { enabled: true, prefix: 'INV' })
-    expect(items.map((i) => i.payload.number)).toEqual(['INV0001', 'INV0001'])
+    const numbers = items.map((i) => i.payload.number)
+    for (const number of numbers) expect(number).toMatch(/^INV-[A-Z0-9]{8}$/)
+    expect(new Set(numbers).size).toBe(2)
   })
 
   it('skips records without a client', () => {
