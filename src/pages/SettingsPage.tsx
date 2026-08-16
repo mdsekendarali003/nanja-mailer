@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.js'
 import { Badge, Button, Card, Input, Spinner } from '../components/ui.js'
 
 export default function SettingsPage() {
-  const { ninja, ninjaSettings, ninjaLoading, saveNinjaSettings, testNinja } = useApp()
+  const { ninja, ninjaSettings, ninjaLoading, saveNinjaSettings, testNinja, clearNinjaSettings } = useApp()
   const [instanceUrl, setInstanceUrl] = useState('')
   const [token, setToken] = useState('')
   const [saving, setSaving] = useState(false)
@@ -96,7 +96,12 @@ export default function SettingsPage() {
         <p className="mt-2 text-xs text-slate-400">
           Hosted: https://invoicing.co — Demo: https://demo.invoiceninja.com — Self-hosted: https://your-domain.com. The app appends <code>/api/v1</code>.
         </p>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex justify-end gap-3">
+          {ninjaSettings?.configured && (
+            <Button variant="danger" onClick={() => void clearNinjaSettings()}>
+              Disconnect (clear saved credentials)
+            </Button>
+          )}
           <Button onClick={() => void submit()} loading={saving} disabled={!instanceUrl.trim()}>
             Save settings
           </Button>

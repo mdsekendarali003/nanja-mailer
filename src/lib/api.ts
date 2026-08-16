@@ -45,6 +45,10 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
   return api<T>(path, { method: 'POST', body: JSON.stringify(body) })
 }
 
+export function apiDelete<T>(path: string): Promise<T> {
+  return api<T>(path, { method: 'DELETE' })
+}
+
 export function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))

@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useState, createContext } from 'react'
 import type { ReactNode } from 'react'
 import type { NinjaConnectionState, NinjaSettingsResponse } from '../../shared/types.js'
-import { apiGet, apiPost } from '../lib/api.js'
+import { apiDelete, apiGet, apiPost } from '../lib/api.js'
 import { useToast } from './ToastContext.js'
 
 export interface AppContextValue {
@@ -13,6 +13,7 @@ export interface AppContextValue {
   refreshNinjaSettings: () => Promise<void>
   saveNinjaSettings: (values: { baseUrl: string; token: string }) => Promise<void>
   testNinja: () => Promise<void>
+  clearNinjaSettings: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -67,6 +68,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     else toast('error', result.error || 'Connection failed.')
   }, [toast])
 
+  const clearNinjaSettings = useCallback(async () => {
+    setNinjaSettings(await apiDelete<NinjaSettingsResponse>('/api/ninja/settings'))
+    setNinja({ ok: false, error: 'Saved credentials cleared. Paste the new API token and save.' })
+    toast('success', 'Saved Invoice Ninja credentials cleared.')
+  }, [toast])
+
   const value = useMemo(
     () => ({
       ninja,
@@ -77,8 +84,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshNinjaSettings,
       saveNinjaSettings,
       testNinja,
+      clearNinjaSettings,
     }),
-    [ninja, ninjaLoading, ninjaSettings, refreshAll, refreshNinja, refreshNinjaSettings, saveNinjaSettings, testNinja],
+    [ninja, ninjaLoading, ninjaSettings, refreshAll, refreshNinja, refreshNinjaSettings, saveNinjaSettings, testNinja, clearNinjaSettings],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

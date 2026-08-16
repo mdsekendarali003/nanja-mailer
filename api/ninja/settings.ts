@@ -1,6 +1,6 @@
 import type { ApiHandler } from '../_lib/types.js'
 import type { NinjaConfig } from '../_lib/ninja.js'
-import { maskSecret, readNinjaConfig, writeNinjaConfig } from '../_lib/ninja.js'
+import { clearNinjaConfig, maskSecret, readNinjaConfig, writeNinjaConfig } from '../_lib/ninja.js'
 
 interface SettingsResponse {
   baseUrl: string
@@ -9,6 +9,12 @@ interface SettingsResponse {
 }
 
 const handler: ApiHandler = async (req, res) => {
+  if (req.method === 'DELETE') {
+    clearNinjaConfig(res)
+    const response: SettingsResponse = { baseUrl: '', tokenMasked: '', configured: false }
+    res.json(response)
+    return
+  }
   if (req.method === 'POST') {
     const body = (req.body || {}) as { baseUrl?: unknown; token?: unknown }
     const current = readNinjaConfig(req)
