@@ -99,7 +99,7 @@ export default function TemplatesPage() {
               <TextArea label="Line item description template" value={draft.description ?? ''} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="e.g. {{description}} — {{invoice_number}}" />
               <TextArea label="Line item description (second part)" value={draft.lineItemDescription ?? ''} onChange={(e) => setDraft({ ...draft, lineItemDescription: e.target.value })} placeholder="Optional — joined with the first part by an em dash" />
               <Input
-                label="Account code"
+                label="Item"
                 value={draft.accountCode ?? ''}
                 onChange={(e) => setDraft({ ...draft, accountCode: e.target.value })}
                 placeholder="e.g. 4100"

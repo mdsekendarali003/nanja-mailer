@@ -216,7 +216,7 @@ export function RecordsStep({
                   <th className="px-3 py-2">Line item</th>
                   <th className="px-3 py-2 w-20">Qty</th>
                   <th className="px-3 py-2 w-28">Unit price</th>
-                  <th className="px-3 py-2 w-28">Account code</th>
+                  <th className="px-3 py-2 w-28">Item</th>
                   <th className="px-3 py-2 w-28">PO/Ref #</th>
                   <th className="px-3 py-2 w-32">Invoice #</th>
                   <th className="px-3 py-2 w-36">Support #</th>
