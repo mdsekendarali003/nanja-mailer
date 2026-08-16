@@ -53,10 +53,10 @@ export const COLUMN_ALIASES: Record<string, string[]> = {
   state: ['state', 'province', 'region'],
   postalCode: ['postal_code', 'postcode', 'postal code', 'zip', 'zip_code', 'zipcode'],
   country: ['country'],
-  description: ['description', 'item', 'item_description', 'line_item', 'product', 'product_name'],
+  description: ['description', 'item_description', 'item name', 'line_item', 'product', 'product_name'],
   qty: ['qty', 'quantity', 'units', 'qty_ordered'],
   unitPrice: ['unit_price', 'unit price', 'price', 'amount', 'unit_amount', 'unitamount'],
-  accountCode: ['account_code', 'account code', 'account', 'chart_of_account'],
+  accountCode: ['account_code', 'account code', 'account', 'item', 'chart_of_account'],
   supportNumber: ['support_number', 'support number', 'support_ref', 'ticket'],
   invoiceNumber: ['invoice_number', 'invoice number', 'invoice#', 'invoice', 'number'],
   date: ['date', 'invoice_date', 'order_date', 'created'],
@@ -71,10 +71,10 @@ const HEADER_ALIASES: Record<string, string[]> = {
   state: ['state', 'province', 'region'],
   postalCode: ['postal_code', 'postcode', 'zip', 'zip_code'],
   country: ['country'],
-  description: ['description', 'item', 'item_description', 'line_item', 'product', 'product_name'],
+  description: ['description', 'item_description', 'item name', 'line_item', 'product', 'product_name'],
   qty: ['qty', 'quantity', 'units'],
   unitPrice: ['unit_price', 'unit price', 'price', 'amount', 'unit_amount'],
-  accountCode: ['account_code', 'account code', 'account'],
+  accountCode: ['account_code', 'account code', 'account', 'item'],
   supportNumber: ['support_number', 'support number', 'support_ref'],
   invoiceNumber: ['invoice_number', 'invoice number', 'invoice#', 'invoice'],
   date: ['date', 'invoice_date', 'order_date'],
@@ -179,7 +179,7 @@ export function parseCsvToRecords(text: string): CsvImportResult {
     if (columns[field] === undefined) missing.push(field)
   }
   if (missing.length > 0) {
-    const message = `Required columns not found: ${missing.join(', ')}. Expected aliases of: customer name, description/item, qty/quantity, unit price/price/amount.`
+    const message = `Required columns not found: ${missing.join(', ')}. Expected aliases of: customer name, description/item name, qty/quantity, unit price/price/amount.`
     return { records: [], rowErrors: [], totalRows: 0, rejected: true, message }
   }
   const dataRows = rows.slice(1)

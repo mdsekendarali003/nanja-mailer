@@ -34,10 +34,15 @@ describe('detectColumnIndexes', () => {
     const idx = detectColumnIndexes(['Customer Name', 'Email Address', 'Item', 'Qty', 'Price', 'Postcode'])
     expect(idx.customerName).toBe(0)
     expect(idx.email).toBe(1)
-    expect(idx.description).toBe(2)
+    expect(idx.accountCode).toBe(2)
     expect(idx.qty).toBe(3)
     expect(idx.unitPrice).toBe(4)
     expect(idx.postalCode).toBe(5)
+  })
+  it('maps item name and description headers', () => {
+    const idx = detectColumnIndexes(['name', 'item name', 'description'])
+    expect(idx.description).toBe(1)
+    expect(idx.accountCode).toBeUndefined()
   })
   it('supports invoice# and zip aliases', () => {
     const idx = detectColumnIndexes(['name', 'invoice#', 'zip'])

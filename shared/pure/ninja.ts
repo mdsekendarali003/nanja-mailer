@@ -36,12 +36,10 @@ export function buildInvoicePayload(record: InvoiceRecordData, template: Invoice
     const payload: NinjaLineItemPayload = {
       cost: item.unitAmount,
       quantity: item.quantity,
-      notes: '',
+      notes: item.description,
     }
-    const itemName = item.description.trim()
-    if (itemName) payload.product_key = itemName
-    const accountCode = item.accountCode?.trim() || template?.accountCode?.trim()
-    if (accountCode) payload.income_account_id = accountCode
+    const productKey = item.accountCode?.trim() || template?.accountCode?.trim()
+    if (productKey) payload.product_key = productKey
     return payload
   })
   const payload: NinjaInvoicePayload = {

@@ -48,7 +48,7 @@ describe('buildInvoicePayload', () => {
     expect(payload.date).toBe('2026-08-01')
     expect(payload.due_date).toBe('2026-08-15')
     expect(payload.terms).toBe('If you have any issues, contact support.')
-    expect(payload.line_items).toEqual([{ product_key: 'Widget', cost: 25, quantity: 2, notes: '', income_account_id: '4100' }])
+    expect(payload.line_items).toEqual([{ product_key: '4100', cost: 25, quantity: 2, notes: 'Widget' }])
   })
 
   it('omits optional fields when absent', () => {
@@ -58,30 +58,24 @@ describe('buildInvoicePayload', () => {
     expect(payload.due_date).toBe(isoDate(undefined, 14)) // today + 14 days
   })
 
-  it('uses the description as the item name (product key)', () => {
+  it('uses the item name (description) as the invoice line notes', () => {
     const payload = buildInvoicePayload(record(), template, 'c1')
-    expect(payload.line_items[0].product_key).toBe('Widget')
-    expect(payload.line_items[0].notes).toBe('')
+    expect(payload.line_items[0].notes).toBe('Widget')
+    expect(payload.line_items[0].product_key).toBe('4100')
   })
 
-  it('uses per-item account code over template account code', () => {
+  it('uses per-item item code over template item code', () => {
     const payload = buildInvoicePayload(
       record({ lineItems: [{ description: 'A', quantity: 1, unitAmount: 5, accountCode: '2000' }] }),
       template,
       'c1',
     )
-    expect(payload.line_items[0].income_account_id).toBe('2000')
+    expect(payload.line_items[0].product_key).toBe('2000')
   })
 
-  it('falls back to the template account code', () => {
-    const payload = buildInvoicePayload(record(), template, 'c1')
-    expect(payload.line_items[0].income_account_id).toBe('4100')
-  })
-
-  it('omits product_key when the description is empty', () => {
-    const payload = buildInvoicePayload(record({ lineItems: [{ description: '', quantity: 1, unitAmount: 5 }] }), template, 'c1')
+  it('omits product_key when no item code is set', () => {
+    const payload = buildInvoicePayload(record({ lineItems: [{ description: 'A', quantity: 1, unitAmount: 5 }] }), { ...template, accountCode: undefined }, 'c1')
     expect(payload.line_items[0].product_key).toBeUndefined()
-    expect(payload.line_items[0].income_account_id).toBe('4100')
   })
 
   it('uses the explicit due date over template payment terms', () => {

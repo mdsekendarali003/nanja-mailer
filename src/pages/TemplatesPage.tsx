@@ -113,14 +113,14 @@ export default function TemplatesPage() {
               />
             </div>
             <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Account code is optional — stored per line for bookkeeping (not shown on the invoice). Common codes: 4100 Service Revenue, 4000 Sale of Goods.
+              The item code appears as the item name on the invoice (e.g. 4100). The description you enter for each record appears underneath it.
             </div>
             <div className="mt-4 flex justify-between">
               <Button variant="danger" onClick={() => setDeleteId(draft.id)}>
                 Delete
               </Button>
               <div className="flex items-center gap-2">
-                <Badge tone={draft.accountCode ? 'green' : 'amber'}>{draft.accountCode ? `Account ${draft.accountCode}` : 'No account code'}</Badge>
+                <Badge tone={draft.accountCode ? 'green' : 'amber'}>{draft.accountCode ? `Item ${draft.accountCode}` : 'No item code'}</Badge>
                 <Button onClick={save}>Save template</Button>
               </div>
             </div>

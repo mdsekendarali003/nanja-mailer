@@ -213,7 +213,7 @@ export function RecordsStep({
                 <tr>
                   <th className="px-3 py-2">Customer</th>
                   <th className="px-3 py-2">Email</th>
-                  <th className="px-3 py-2">Line item</th>
+                  <th className="px-3 py-2">Description</th>
                   <th className="px-3 py-2 w-20">Qty</th>
                   <th className="px-3 py-2 w-28">Unit price</th>
                   <th className="px-3 py-2 w-28">Item</th>

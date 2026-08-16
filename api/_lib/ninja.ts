@@ -52,6 +52,7 @@ export interface NinjaResult {
   status: number
   json: unknown
   text: string
+  retryAfterMs?: number
 }
 
 export interface NinjaListResult<T> {
@@ -103,6 +104,23 @@ export async function fetchClientInvoices(config: NinjaConfig, clientId: string)
   return { invoices, ok: true }
 }
 
+const MAX_ACTIVE_NINJA_CALLS = 3
+let activeNinjaCalls = 0
+const ninjaCallQueue: (() => void)[] = []
+
+async function runNinjaCallLimited<T>(task: () => Promise<T>): Promise<T> {
+  if (activeNinjaCalls >= MAX_ACTIVE_NINJA_CALLS) {
+    await new Promise<void>((resolve) => ninjaCallQueue.push(resolve))
+  }
+  activeNinjaCalls++
+  try {
+    return await task()
+  } finally {
+    activeNinjaCalls--
+    ninjaCallQueue.shift()?.()
+  }
+}
+
 export async function ninjaApiCall(config: NinjaConfig, path: string, options: { method?: string; body?: unknown } = {}): Promise<NinjaResult> {
   const base = config.baseUrl.replace(/\/+$/, '')
   const headers: Record<string, string> = {
@@ -128,19 +146,25 @@ export async function ninjaApiCall(config: NinjaConfig, path: string, options: {
   } catch {
     json = null
   }
-  return { status: response.status, json, text }
+  let retryAfterMs: number | undefined
+  const retryAfter = response.headers.get('retry-after')
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds) && seconds > 0) retryAfterMs = seconds * 1000
+  }
+  return { status: response.status, json, text, retryAfterMs }
 }
 
 export async function ninjaApiCallWithRetry(config: NinjaConfig, path: string, options: { method?: string; body?: unknown } = {}): Promise<NinjaResult> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const result = await ninjaApiCall(config, path, options)
-    if (result.status === 429 || (result.status >= 500 && result.status <= 599)) {
-      await new Promise((r) => setTimeout(r, 1500))
-      continue
-    }
-    return result
+  let lastResult: NinjaResult | null = null
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const result = await runNinjaCallLimited(() => ninjaApiCall(config, path, options))
+    if (result.status !== 429 && !(result.status >= 500 && result.status <= 599)) return result
+    lastResult = result
+    const waitMs = result.retryAfterMs ?? Math.min(1000 * 2 ** attempt, 8000) + Math.floor(Math.random() * 250)
+    await new Promise((r) => setTimeout(r, waitMs))
   }
-  return ninjaApiCall(config, path, options)
+  return lastResult ?? { status: 0, json: null, text: '' }
 }
 
 export function mapNinjaError(status: number, text: string): ApiError {

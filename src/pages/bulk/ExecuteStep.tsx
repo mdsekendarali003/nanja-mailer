@@ -143,7 +143,7 @@ export function ExecuteStep({
     else if (p === 'mark_sent') log('info', `Marking ${targets.length} invoice(s) as sent…`)
     else log('info', `Emailing ${targets.length} invoice(s)…`)
     let failed = 0
-    for (const batch of chunk(targets, 5)) {
+    for (const batch of chunk(targets, 3)) {
       await Promise.all(
         batch.map(async (target) => {
           const w = records.find((r) => r.record.id === target.id)
