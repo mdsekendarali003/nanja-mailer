@@ -7,9 +7,18 @@ import type { InvoiceNumbering } from '../../lib/numbering.js'
 import { clearExecuteStatus, loadExecuteStatus, saveExecuteStatus } from '../../lib/wizard-session.js'
 import { useToast } from '../../context/ToastContext.js'
 import { buildCreateItems, type ExecuteItemStatus, type ExecuteStatusItem, type WizardRecord } from '../../lib/wizard.js'
-import { Badge, Button, Card, EmptyState, Spinner } from '../../components/ui.js'
+import { Button, Card, EmptyState, Spinner } from '../../components/ui.js'
 
 type Phase = 'create' | 'mark_sent' | 'email'
+
+interface LogEntry {
+  id: number
+  time: string
+  type: 'info' | 'success' | 'error'
+  text: string
+}
+
+const LOG_LIMIT = 200
 
 export function ExecuteStep({
   records,
@@ -43,7 +52,9 @@ export function ExecuteStep({
   const [phase, setPhase] = useState<Phase | null>(null)
   const [progress, setProgress] = useState(0)
   const [total, setTotal] = useState(0)
-  const [done, setDone] = useState(false)
+  const [logs, setLogs] = useState<LogEntry[]>([])
+  const nextLogId = useRef(1)
+  const logPanelRef = useRef<HTMLDivElement>(null)
 
   const items = useMemo(() => buildCreateItems(records, template, numbering), [records, template, numbering])
 
@@ -56,12 +67,25 @@ export function ExecuteStep({
     saveExecuteStatus({ statuses, interrupted: interrupted || phase !== null || running })
   }, [statuses, interrupted, phase, running])
 
+  useEffect(() => {
+    const el = logPanelRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [logs])
+
+  const log = (type: LogEntry['type'], text: string) => {
+    setLogs((prev) => [...prev.slice(-(LOG_LIMIT - 1)), { id: nextLogId.current++, time: new Date().toLocaleTimeString(), type, text }])
+  }
+
   const update = (id: string, patch: Partial<ExecuteStatusItem>) => {
     setStatuses((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
   }
 
   const patchRecord = (id: string, invoiceId: string) => {
     setRecords((prev) => prev.map((w) => (w.record.id === id ? { ...w, invoiceId } : w)))
+  }
+
+  const customerOf = (id: string): string => {
+    return records.find((r) => r.record.id === id)?.record.customerName ?? id
   }
 
   useEffect(() => {
@@ -75,6 +99,7 @@ export function ExecuteStep({
     if (candidates.length === 0) return
     let cancelled = false
     setVerifying(true)
+    log('info', `Checking Invoice Ninja for ${candidates.length} invoice(s) that may have been created before the interruption…`)
     ;(async () => {
       try {
         const result = await apiPost<{ results: { key: string; found: boolean; checked: boolean; invoiceId?: string }[] }>('/api/ninja/invoices-check', {
@@ -87,14 +112,17 @@ export function ExecuteStep({
             update(r.key, { status: 'created', invoiceId: r.invoiceId, message: 'Recovered — already created in Invoice Ninja' })
             patchRecord(r.key, r.invoiceId)
             if (item && numbering.enabled) bumpCount(item.clientId)
+            log('success', `${customerOf(r.key)} — recovered, already created in Invoice Ninja (${r.invoiceId})`)
           } else if (r.checked) {
             update(r.key, { status: 'pending', message: 'Checked — not yet created' })
+            log('info', `${customerOf(r.key)} — not created yet, ready to send`)
           } else {
             update(r.key, { status: 'pending', message: 'Could not verify — check Invoice Ninja before running' })
+            log('error', `${customerOf(r.key)} — could not verify against Invoice Ninja, check before sending`)
           }
         }
       } catch {
-        // leave records pending; the user can review before running
+        log('error', 'Could not check Invoice Ninja — records will be sent as pending.')
       } finally {
         if (!cancelled) setVerifying(false)
       }
@@ -115,6 +143,9 @@ export function ExecuteStep({
     setPhase(p)
     setTotal(targets.length)
     setProgress(0)
+    if (p === 'create') log('info', `Creating ${targets.length} invoice(s)…`)
+    else if (p === 'mark_sent') log('info', `Marking ${targets.length} invoice(s) as sent…`)
+    else log('info', `Emailing ${targets.length} invoice(s)…`)
     let failed = 0
     for (const batch of chunk(targets, 5)) {
       await Promise.all(
@@ -125,6 +156,7 @@ export function ExecuteStep({
             const item = items.find((i) => i.id === target.id)
             if (!item) {
               update(target.id, { status: 'error', message: 'Missing client — go back to the Clients step.' })
+              log('error', `${customerOf(target.id)} — no client assigned, skipped`)
               failed++
               return
             }
@@ -137,12 +169,15 @@ export function ExecuteStep({
                 update(target.id, { status: 'created', invoiceId: r.invoiceId, message: `Invoice ${r.number ?? ''} created` })
                 patchRecord(target.id, r.invoiceId ?? '')
                 if (item.autoNumbered) bumpCount(item.clientId)
+                log('success', `${customerOf(target.id)} — invoice ${r.number ?? ''} created`)
               } else {
                 update(target.id, { status: 'error', message: r?.error ?? 'Create failed' })
+                log('error', `${customerOf(target.id)} — create failed: ${r?.error ?? 'unknown error'}`)
                 failed++
               }
             } catch (err) {
               update(target.id, { status: 'error', message: err instanceof Error ? err.message : 'Create failed' })
+              log('error', `${customerOf(target.id)} — create failed: ${err instanceof Error ? err.message : 'unknown error'}`)
               failed++
             }
           } else {
@@ -150,6 +185,7 @@ export function ExecuteStep({
             const itemsFor = w.invoiceId ? [{ id: w.record.id, invoiceId: w.invoiceId }] : []
             if (itemsFor.length === 0) {
               update(target.id, { status: 'error', message: 'No invoice to send' })
+              log('error', `${customerOf(target.id)} — no invoice to send`)
               failed++
               return
             }
@@ -161,12 +197,16 @@ export function ExecuteStep({
               const r = result.results[0]
               if (r?.ok) {
                 update(target.id, { status: p === 'mark_sent' ? 'sent' : 'emailed' })
+                if (p === 'mark_sent') log('success', `${customerOf(target.id)} — marked as sent`)
+                else log('success', `${customerOf(target.id)} — emailed`)
               } else {
                 update(target.id, { status: 'error', message: r?.error ?? 'Failed' })
+                log('error', `${customerOf(target.id)} — ${p === 'mark_sent' ? 'mark-sent' : 'email'} failed: ${r?.error ?? 'unknown error'}`)
                 failed++
               }
             } catch (err) {
               update(target.id, { status: 'error', message: err instanceof Error ? err.message : 'Failed' })
+              log('error', `${customerOf(target.id)} — ${p === 'mark_sent' ? 'mark-sent' : 'email'} failed: ${err instanceof Error ? err.message : 'unknown error'}`)
               failed++
             }
           }
@@ -174,30 +214,31 @@ export function ExecuteStep({
         }),
       )
     }
-    if (failed > 0) toast('warning', `${failed} record(s) failed during ${p}.`)
+    if (failed > 0) toast('warning', `${failed} record(s) failed during ${p}. See the log below.`)
     setPhase(null)
   }
 
-  const runAll = async () => {
+  const sendAll = async () => {
     setRunning(true)
-    setDone(false)
     setInterrupted(false)
+    log('info', 'Starting — creating invoices, marking sent and emailing…')
     await runPhase('create')
     if (statusesRef.current.some((s) => s.status === 'created')) await runPhase('mark_sent')
     if (statusesRef.current.some((s) => s.status === 'sent' || s.status === 'created')) await runPhase('email')
-    setDone(true)
     setRunning(false)
     clearExecuteStatus()
+    const emailed = statusesRef.current.filter((s) => s.status === 'emailed').length
+    const failed = statusesRef.current.filter((s) => s.status === 'error').length
+    if (failed > 0) log('error', `Finished — ${emailed} emailed, ${failed} failed. Retry the failed ones or check Invoice Ninja.`)
+    else log('success', `All done — ${emailed} invoice(s) created and emailed.`)
   }
 
-  const retry = async () => {
-    setDone(false)
+  const retryFailed = async () => {
     setRunning(true)
     setInterrupted(false)
     await runPhase('create')
     await runPhase('mark_sent')
     await runPhase('email')
-    setDone(true)
     setRunning(false)
     clearExecuteStatus()
   }
@@ -207,15 +248,15 @@ export function ExecuteStep({
 
   return (
     <Card
-      title="Run invoices"
-      subtitle="Create each invoice, mark it sent, then email the PDF — in batches of 5."
+      title="Send invoices"
+      subtitle="One click creates every invoice, marks it sent and emails the PDF — progress appears below in real time."
       actions={
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => void retry()} disabled={running || !hasErrors}>
+          <Button variant="secondary" onClick={() => void retryFailed()} disabled={running || !hasErrors}>
             Retry failed
           </Button>
-          <Button onClick={() => void runAll()} loading={running} disabled={statuses.length === 0}>
-            Start
+          <Button onClick={() => void sendAll()} loading={running} disabled={statuses.length === 0}>
+            {running ? 'Sending…' : 'Send all'}
           </Button>
         </div>
       }
@@ -234,13 +275,13 @@ export function ExecuteStep({
       )}
       {interrupted && !running && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Your previous run was interrupted. Invoices that were already created are recovered automatically — review the table, then press{' '}
-          <span className="font-medium">Start</span> to continue from where it left off.
+          Your previous run was interrupted. Invoices that were already created are recovered automatically — press{' '}
+          <span className="font-medium">Send all</span> to continue from where it left off.
         </div>
       )}
       <div className="mb-4 grid gap-3 sm:grid-cols-4">
         <div className="rounded-lg bg-slate-50 p-3">
-          <p className="text-xs text-slate-500">Pending</p>
+          <p className="text-xs text-slate-500">Ready to send</p>
           <p className="text-lg font-semibold text-slate-800">{count('pending')}</p>
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
@@ -248,49 +289,29 @@ export function ExecuteStep({
           <p className="text-lg font-semibold text-emerald-600">{count('created') + count('sent') + count('emailed')}</p>
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
-          <p className="text-xs text-slate-500">Sent</p>
-          <p className="text-lg font-semibold text-slate-800">{count('sent') + count('emailed')}</p>
-        </div>
-        <div className="rounded-lg bg-slate-50 p-3">
           <p className="text-xs text-slate-500">Emailed</p>
           <p className="text-lg font-semibold text-slate-800">{count('emailed')}</p>
         </div>
-      </div>
-      {done && !hasErrors && (
-        <div className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          All done — {count('emailed')} invoice(s) created and emailed.
+        <div className="rounded-lg bg-red-50 p-3">
+          <p className="text-xs text-slate-500">Failed</p>
+          <p className={`text-lg font-semibold ${hasErrors ? 'text-red-600' : 'text-slate-800'}`}>{count('error')}</p>
         </div>
-      )}
+      </div>
       {statuses.length === 0 ? (
         <EmptyState title="No records selected for invoicing." />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
-              <tr>
-                <th className="px-3 py-2">Customer</th>
-                <th className="px-3 py-2">Client</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {statuses.map((s) => {
-                const w = records.find((r) => r.record.id === s.id)
-                if (!w) return null
-                return (
-                  <tr key={s.id} className="border-t border-slate-100">
-                    <td className="px-3 py-2">{w.record.customerName}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{w.client.clientName ?? w.client.status}</td>
-                    <td className="px-3 py-2">
-                      <Badge tone={s.status === 'error' ? 'red' : s.status === 'pending' ? 'slate' : 'green'}>{s.status}</Badge>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{s.message ?? ''}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div ref={logPanelRef} className="max-h-96 overflow-y-auto rounded-lg border border-slate-200 bg-slate-900 p-3 font-mono text-xs">
+          {logs.length === 0 && <p className="text-slate-500">Press “Send all” to start — every email will appear here in real time.</p>}
+          {logs.map((entry) => (
+            <p
+              key={entry.id}
+              className={`py-0.5 ${
+                entry.type === 'success' ? 'text-emerald-400' : entry.type === 'error' ? 'text-red-400' : 'text-slate-300'
+              }`}
+            >
+              <span className="text-slate-500">[{entry.time}]</span> {entry.text}
+            </p>
+          ))}
         </div>
       )}
     </Card>

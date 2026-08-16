@@ -4,7 +4,41 @@ import type { InvoiceRecordData } from '../../../shared/types.js'
 import { addLineItem, editRecord, patchLineItem, recordTotal, removeLineItem } from '../../lib/records.js'
 import type { InvoiceNumbering } from '../../lib/numbering.js'
 import { money } from '../../lib/api.js'
+import { useToast } from '../../context/ToastContext.js'
 import { Badge, Button, Card, Checkbox, EmptyState, Input } from '../../components/ui.js'
+
+const BULK_DEFAULTS_KEY = 'mailflow_bulk_defaults'
+
+interface BulkDefaults {
+  description: string
+  quantity: string
+  unitPrice: string
+}
+
+function loadBulkDefaults(): BulkDefaults {
+  try {
+    const raw = localStorage.getItem(BULK_DEFAULTS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<BulkDefaults>
+      return {
+        description: typeof parsed.description === 'string' ? parsed.description : '',
+        quantity: typeof parsed.quantity === 'string' ? parsed.quantity : '',
+        unitPrice: typeof parsed.unitPrice === 'string' ? parsed.unitPrice : '',
+      }
+    }
+  } catch {
+    // fall through to empty defaults
+  }
+  return { description: '', quantity: '', unitPrice: '' }
+}
+
+function saveBulkDefaults(defaults: BulkDefaults): void {
+  try {
+    localStorage.setItem(BULK_DEFAULTS_KEY, JSON.stringify(defaults))
+  } catch {
+    // ignore quota errors
+  }
+}
 
 export function RecordsStep({
   records,
@@ -17,28 +51,59 @@ export function RecordsStep({
   numbering: InvoiceNumbering
   setNumbering: Dispatch<SetStateAction<InvoiceNumbering>>
 }) {
+  const { toast } = useToast()
   const [search, setSearch] = useState('')
-  const [bulkDescription, setBulkDescription] = useState('')
+  const [bulkDescription, setBulkDescription] = useState(() => loadBulkDefaults().description)
+  const [bulkQuantity, setBulkQuantity] = useState(() => loadBulkDefaults().quantity)
+  const [bulkUnitPrice, setBulkUnitPrice] = useState(() => loadBulkDefaults().unitPrice)
   const [bulkDate, setBulkDate] = useState('')
   const [bulkDueDate, setBulkDueDate] = useState('')
 
-  const applyDescription = () => {
+  const applyItemFields = () => {
+    if (records.length === 0) return
     const description = bulkDescription.trim()
-    if (!description || records.length === 0) return
-    setRecords(records.map((record) => ({ ...record, lineItems: record.lineItems.map((item) => ({ ...item, description })) })))
-    setBulkDescription('')
+    const quantity = bulkQuantity.trim() === '' ? null : Number(bulkQuantity)
+    const unitPrice = bulkUnitPrice.trim() === '' ? null : Number(bulkUnitPrice)
+    if (quantity !== null && !(quantity > 0)) {
+      toast('error', 'Quantity must be greater than 0.')
+      return
+    }
+    if (unitPrice !== null && !Number.isFinite(unitPrice)) {
+      toast('error', 'Unit price must be a number.')
+      return
+    }
+    if (!description && quantity === null && unitPrice === null) return
+    setRecords(
+      records.map((record) => ({
+        ...record,
+        lineItems: record.lineItems.map((item) => ({
+          ...item,
+          description: description || item.description,
+          quantity: quantity ?? item.quantity,
+          unitAmount: unitPrice ?? item.unitAmount,
+        })),
+      })),
+    )
+    saveBulkDefaults({ description, quantity: bulkQuantity.trim(), unitPrice: bulkUnitPrice.trim() })
+    if (description) setBulkDescription('')
+    if (quantity !== null) setBulkQuantity('')
+    if (unitPrice !== null) setBulkUnitPrice('')
+    toast('success', 'Item fields applied to all records.')
   }
 
-  const applyDate = () => {
-    if (!bulkDate || records.length === 0) return
-    setRecords(records.map((record) => ({ ...record, date: bulkDate })))
+  const applyDates = () => {
+    if (records.length === 0) return
+    if (!bulkDate && !bulkDueDate) return
+    setRecords(
+      records.map((record) => ({
+        ...record,
+        date: bulkDate || record.date,
+        dueDate: bulkDueDate || record.dueDate,
+      })),
+    )
     setBulkDate('')
-  }
-
-  const applyDueDate = () => {
-    if (!bulkDueDate || records.length === 0) return
-    setRecords(records.map((record) => ({ ...record, dueDate: bulkDueDate })))
     setBulkDueDate('')
+    toast('success', 'Dates applied to all records.')
   }
 
   const filtered = useMemo(() => {
@@ -58,10 +123,7 @@ export function RecordsStep({
 
   return (
     <div className="space-y-4">
-      <Card
-        title="Bulk edit"
-        subtitle="Apply the same values to every record in one click."
-      >
+      <Card title="Bulk edit" subtitle="Set the item, unit price and quantity once — applied to every record.">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Input
             label="Line item description"
@@ -69,22 +131,33 @@ export function RecordsStep({
             onChange={(e) => setBulkDescription(e.target.value)}
             placeholder="e.g. Monthly hosting"
           />
-          <Input label="Invoice date" type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)} />
-          <Input label="Due date" type="date" value={bulkDueDate} onChange={(e) => setBulkDueDate(e.target.value)} />
-          <div className="flex items-end gap-2">
-            <Button variant="secondary" onClick={applyDescription} disabled={!bulkDescription.trim() || records.length === 0}>
-              Apply description
+          <Input label="Quantity" type="number" min={0} step="any" value={bulkQuantity} onChange={(e) => setBulkQuantity(e.target.value)} placeholder="1" />
+          <Input label="Unit price" type="number" min={0} step="0.01" value={bulkUnitPrice} onChange={(e) => setBulkUnitPrice(e.target.value)} placeholder="49.00" />
+          <div className="flex items-end">
+            <Button
+              variant="secondary"
+              onClick={applyItemFields}
+              disabled={
+                records.length === 0 ||
+                (!bulkDescription.trim() && bulkQuantity.trim() === '' && bulkUnitPrice.trim() === '')
+              }
+            >
+              Apply to all
             </Button>
           </div>
         </div>
-        <div className="mt-2 flex items-center gap-2">
-          <Button variant="ghost" className="px-2 py-1 text-xs" onClick={applyDate} disabled={!bulkDate || records.length === 0}>
-            Apply invoice date to all
-          </Button>
-          <Button variant="ghost" className="px-2 py-1 text-xs" onClick={applyDueDate} disabled={!bulkDueDate || records.length === 0}>
-            Apply due date to all
-          </Button>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Input label="Invoice date" type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)} />
+          <Input label="Due date" type="date" value={bulkDueDate} onChange={(e) => setBulkDueDate(e.target.value)} />
+          <div className="flex items-end">
+            <Button variant="secondary" onClick={applyDates} disabled={records.length === 0 || (!bulkDate && !bulkDueDate)}>
+              Apply dates to all
+            </Button>
+          </div>
         </div>
+        <p className="mt-2 text-xs text-slate-400">
+          The last-used item, quantity and unit price are remembered for your next import.
+        </p>
         <div className="mt-4 border-t border-slate-100 pt-4">
           <Checkbox
             checked={numbering.enabled}

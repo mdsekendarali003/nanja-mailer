@@ -80,23 +80,33 @@ export function ClientsStep({
     }
   }
 
+  const syncClients = async (shouldCreate: boolean): Promise<void> => {
+    const result = await apiGet<{ clients: NinjaClientInfo[] }>('/api/ninja/clients')
+    setClients(result.clients)
+    const autoMatched: WizardRecord[] = records.map((w) => {
+      if (isUnmatched(w)) {
+        const matched = matchClientToRecord(result.clients, w.record)
+        if (matched) return { ...w, client: { status: 'matched', clientId: matched.id, clientName: matched.name, source: 'auto' } }
+      }
+      return w
+    })
+    setRecords(autoMatched)
+    const recordClientIds = autoMatched.filter((w) => w.client.clientId).map((w) => w.client.clientId as string)
+    void seedCounts(recordClientIds)
+    if (shouldCreate) {
+      const missing = autoMatched.filter((w) => isUnmatched(w))
+      if (missing.length > 0) {
+        await createClientsFor(autoMatched)
+        await syncClients(false)
+      }
+    }
+  }
+
   const loadClients = async () => {
     setLoading(true)
     setLoadError(null)
     try {
-      const result = await apiGet<{ clients: NinjaClientInfo[] }>('/api/ninja/clients')
-      setClients(result.clients)
-      const autoMatched: WizardRecord[] = records.map((w) => {
-        if (isUnmatched(w)) {
-          const matched = matchClientToRecord(result.clients, w.record)
-          if (matched) return { ...w, client: { status: 'matched', clientId: matched.id, clientName: matched.name, source: 'auto' } }
-        }
-        return w
-      })
-      setRecords(autoMatched)
-      const recordClientIds = autoMatched.filter((w) => w.client.clientId).map((w) => w.client.clientId as string)
-      void seedCounts(recordClientIds)
-      if (autoCreate) await createClientsFor(autoMatched)
+      await syncClients(true)
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Could not load clients.')
     } finally {
@@ -109,8 +119,6 @@ export function ClientsStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const unmatched = records.filter((w) => isUnmatched(w))
-
   const searchableClients = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return clients
@@ -121,6 +129,7 @@ export function ClientsStep({
     await createClientsFor(records)
   }
 
+  const unmatched = records.filter((w) => isUnmatched(w))
   const countByStatus = (status: string) => records.filter((w) => w.client.status === status).length
 
   return (
