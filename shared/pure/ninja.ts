@@ -50,7 +50,7 @@ export function buildInvoicePayload(record: InvoiceRecordData, template: Invoice
   if (record.invoiceNumber?.trim()) payload.number = record.invoiceNumber.trim()
   if (record.reference?.trim()) payload.po_number = record.reference.trim()
   if (template?.supportMessage?.trim()) {
-    const supportNumber = record.supportNumber?.trim() || template.supportNumber?.trim() || ''
+    const supportNumber = record.supportNumber?.trim() || ''
     payload.terms = template.supportMessage.trim().replace(/\{\{\s*support_number\s*\}\}/g, supportNumber)
   }
   if (record.dueDate?.trim()) {

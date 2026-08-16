@@ -105,6 +105,26 @@ export default function BulkPage() {
         ))}
       </ol>
 
+      <div className="mt-6 flex items-center justify-between">
+        {step > 0 && step < 4 && (
+          <Button variant="secondary" onClick={() => setStep((s) => s - 1)}>
+            ← Back
+          </Button>
+        )}
+        {step < 3 && (
+          <div className="ml-auto flex items-center gap-3">
+            {step === 1 && source && (
+              <button onClick={() => setStep(0)} className="text-sm text-slate-500 hover:text-slate-700">
+                Start over with a different source
+              </button>
+            )}
+            <Button onClick={() => setStep((s) => s + 1)} disabled={!canContinue()}>
+              Continue →
+            </Button>
+          </div>
+        )}
+      </div>
+
       <div className="mt-6">
         {step === 0 && <SourceStep onRecords={onSourceRecords} />}
         {step === 1 && (
@@ -153,26 +173,6 @@ export default function BulkPage() {
               )}
             </Card>
             <ExecuteStep records={records} setRecords={setRecords} template={template} numbering={numbering} />
-          </div>
-        )}
-      </div>
-
-      <div className="mt-6 flex items-center justify-between">
-        {step > 0 && step < 4 && (
-          <Button variant="secondary" onClick={() => setStep((s) => s - 1)}>
-            ← Back
-          </Button>
-        )}
-        {step < 3 && (
-          <div className="ml-auto flex items-center gap-3">
-            {step === 1 && source && (
-              <button onClick={() => setStep(0)} className="text-sm text-slate-500 hover:text-slate-700">
-                Start over with a different source
-              </button>
-            )}
-            <Button onClick={() => setStep((s) => s + 1)} disabled={!canContinue()}>
-              Continue →
-            </Button>
           </div>
         )}
       </div>

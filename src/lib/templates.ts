@@ -11,7 +11,6 @@ export function seedTemplates(): InvoiceTemplate[] {
       lineItemDescription: '',
       accountCode: '4100',
       supportMessage: 'If you have any issues, please contact our customer service team at {{support_number}}',
-      supportNumber: '',
       paymentTermsDays: 14,
     },
   ]

@@ -105,12 +105,6 @@ export default function TemplatesPage() {
                 placeholder="e.g. 4100"
               />
               <TextArea label="Support message" value={draft.supportMessage ?? ''} onChange={(e) => setDraft({ ...draft, supportMessage: e.target.value })} placeholder={'Use {{support_number}}'} />
-              <Input
-                label="Support number"
-                value={draft.supportNumber ?? ''}
-                onChange={(e) => setDraft({ ...draft, supportNumber: e.target.value })}
-                placeholder="e.g. +1 555 000 1234"
-              />
             </div>
             <div className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
               The item code appears as the item name on the invoice (e.g. 4100). The description you enter for each record appears underneath it.

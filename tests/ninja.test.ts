@@ -89,12 +89,6 @@ describe('buildInvoicePayload', () => {
     expect(payload.terms).toBe('Call us at SUP-123 if you need help.')
   })
 
-  it('falls back to the template support number when the record has none', () => {
-    const tpl: InvoiceTemplate = { ...template, supportMessage: 'Call {{support_number}}', supportNumber: 'TPL-999' }
-    const payload = buildInvoicePayload(record(), tpl, 'c1')
-    expect(payload.terms).toBe('Call TPL-999')
-  })
-
   it('empties the placeholder when no support number is set anywhere', () => {
     const tpl: InvoiceTemplate = { ...template, supportMessage: 'Call {{support_number}}' }
     const payload = buildInvoicePayload(record(), tpl, 'c1')

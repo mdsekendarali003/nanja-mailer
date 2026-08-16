@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.js'
 import { Badge, Button, Card, Input, Spinner } from '../components/ui.js'
 
 export default function SettingsPage() {
-  const { ninjaSettings, ninjaLoading, saveNinjaSettings, testNinja } = useApp()
+  const { ninja, ninjaSettings, ninjaLoading, saveNinjaSettings, testNinja } = useApp()
   const [instanceUrl, setInstanceUrl] = useState('')
   const [token, setToken] = useState('')
   const [saving, setSaving] = useState(false)
@@ -57,6 +57,25 @@ export default function SettingsPage() {
               <Badge tone="amber">Not configured</Badge>
               <span className="text-slate-500">Server env vars are used when set.</span>
             </>
+          )}
+        </div>
+        <div
+          className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+            ninja?.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'
+          }`}
+        >
+          {ninjaLoading ? (
+            <Spinner size="sm" />
+          ) : ninja?.ok ? (
+            <>
+              <Badge tone="green">Connected</Badge>
+              <span>
+                Organization: <strong>{ninja.companyName}</strong>
+                {ninja.subdomain ? <span className="text-slate-500"> · {ninja.subdomain}.invoicing.co</span> : null}
+              </span>
+            </>
+          ) : (
+            <span>{ninja?.error || 'Not connected yet — test the connection.'}</span>
           )}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

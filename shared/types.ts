@@ -40,6 +40,7 @@ export interface InvoiceRecordData {
 export interface NinjaConnectionState {
   ok: boolean
   companyName?: string
+  subdomain?: string
   error?: string
 }
 
@@ -89,6 +90,5 @@ export interface InvoiceTemplate {
   lineItemDescription?: string
   accountCode?: string
   supportMessage?: string
-  supportNumber?: string
   paymentTermsDays?: number
 }

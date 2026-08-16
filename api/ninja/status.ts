@@ -11,10 +11,11 @@ const handler: ApiHandler = async (req, res) => {
   }
   const result = await ninjaApiCallWithRetry(config, '/companies')
   if (result.status === 200) {
-    const { items } = parseNinjaList<{ name?: string; settings?: { name?: string } }>(result)
+    const { items } = parseNinjaList<{ name?: string; settings?: { name?: string; subdomain?: string } }>(result)
     const company = items[0]
     const companyName = company?.settings?.name || company?.name || 'Invoice Ninja'
-    const state: NinjaConnectionState = { ok: true, companyName }
+    const subdomain = company?.settings?.subdomain?.trim()
+    const state: NinjaConnectionState = { ok: true, companyName, subdomain }
     res.json(state)
     return
   }
