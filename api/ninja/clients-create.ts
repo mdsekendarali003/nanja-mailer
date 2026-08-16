@@ -1,5 +1,5 @@
 import type { ApiHandler } from '../_lib/types.js'
-import { mapNinjaError, ninjaApiCallWithRetry, readNinjaConfig } from '../_lib/ninja.js'
+import { mapNinjaError, ninjaApiCallWithRetry, parseNinjaData, readNinjaConfig } from '../_lib/ninja.js'
 import { jsonError } from '../_lib/types.js'
 
 interface CreateClientResponse {
@@ -28,7 +28,7 @@ const handler: ApiHandler = async (req, res) => {
       body: { name, contacts: [{ first_name: '', last_name: '', email }] },
     })
     if (result.status === 200) {
-      const data = (result.json || {}) as { id?: string; name?: string }
+      const data = parseNinjaData<{ id?: string; name?: string }>(result) ?? {}
       const response: CreateClientResponse = { ok: true, id: data.id, name: data.name || name }
       res.json(response)
       return

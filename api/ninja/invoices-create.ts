@@ -1,5 +1,5 @@
 import type { ApiHandler } from '../_lib/types.js'
-import { mapNinjaError, ninjaApiCallWithRetry, readNinjaConfig } from '../_lib/ninja.js'
+import { mapNinjaError, ninjaApiCallWithRetry, parseNinjaData, readNinjaConfig } from '../_lib/ninja.js'
 import { jsonError } from '../_lib/types.js'
 import type { ApiError, NinjaInvoicePayload } from '../../shared/types.js'
 
@@ -38,7 +38,7 @@ const handler: ApiHandler = async (req, res) => {
     try {
       const result = await ninjaApiCallWithRetry(config, '/invoices', { method: 'POST', body: item.payload })
       if (result.status === 200) {
-        const data = (result.json || {}) as { id?: string; number?: string }
+        const data = parseNinjaData<{ id?: string; number?: string }>(result) ?? {}
         results.push({ id: item.id, ok: true, invoiceId: data.id, invoiceNumber: data.number })
       } else {
         const mapped = mapNinjaError(result.status, result.text)

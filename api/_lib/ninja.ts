@@ -59,6 +59,16 @@ export interface NinjaListResult<T> {
   totalPages?: number
 }
 
+export function parseNinjaData<T>(result: NinjaResult): T | null {
+  const json = result.json as unknown
+  if (json && typeof json === 'object' && !Array.isArray(json)) {
+    const obj = json as { data?: unknown }
+    if (obj && typeof obj.data === 'object' && obj.data !== null) return obj.data as T
+    return json as T
+  }
+  return json as T
+}
+
 export function parseNinjaList<T>(result: NinjaResult): NinjaListResult<T> {
   const json = result.json as unknown
   if (Array.isArray(json)) return { items: json as T[] }

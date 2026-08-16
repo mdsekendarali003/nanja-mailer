@@ -59,9 +59,6 @@ export function ExecuteStep({
   const items = useMemo(() => buildCreateItems(records, template, numbering), [records, template, numbering])
 
   const statusesRef = useRef(statuses)
-  useEffect(() => {
-    statusesRef.current = statuses
-  }, [statuses])
 
   useEffect(() => {
     saveExecuteStatus({ statuses, interrupted: interrupted || phase !== null || running })
@@ -77,7 +74,9 @@ export function ExecuteStep({
   }
 
   const update = (id: string, patch: Partial<ExecuteStatusItem>) => {
-    setStatuses((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
+    const next = statusesRef.current.map((s) => (s.id === id ? { ...s, ...patch } : s))
+    statusesRef.current = next
+    setStatuses(next)
   }
 
   const patchRecord = (id: string, invoiceId: string) => {
@@ -161,15 +160,15 @@ export function ExecuteStep({
               return
             }
             try {
-              const result = await apiPost<{ results: { id: string; ok: boolean; invoiceId?: string; number?: string; error?: string }[] }>('/api/ninja/invoices-create', {
+              const result = await apiPost<{ results: { id: string; ok: boolean; invoiceId?: string; invoiceNumber?: string; error?: string }[] }>('/api/ninja/invoices-create', {
                 items: [item],
               })
               const r = result.results[0]
               if (r?.ok) {
-                update(target.id, { status: 'created', invoiceId: r.invoiceId, message: `Invoice ${r.number ?? ''} created` })
+                update(target.id, { status: 'created', invoiceId: r.invoiceId, message: `Invoice ${r.invoiceNumber ?? ''} created` })
                 patchRecord(target.id, r.invoiceId ?? '')
                 if (item.autoNumbered) bumpCount(item.clientId)
-                log('success', `${customerOf(target.id)} — invoice ${r.number ?? ''} created`)
+                log('success', `${customerOf(target.id)} — invoice ${r.invoiceNumber ?? '?'} (${r.invoiceId ?? 'no id'}) created`)
               } else {
                 update(target.id, { status: 'error', message: r?.error ?? 'Create failed' })
                 log('error', `${customerOf(target.id)} — create failed: ${r?.error ?? 'unknown error'}`)
@@ -182,7 +181,8 @@ export function ExecuteStep({
             }
           } else {
             const action = p
-            const itemsFor = w.invoiceId ? [{ id: w.record.id, invoiceId: w.invoiceId }] : []
+            const invoiceId = target.invoiceId || w.invoiceId
+            const itemsFor = invoiceId ? [{ id: w.record.id, invoiceId }] : []
             if (itemsFor.length === 0) {
               update(target.id, { status: 'error', message: 'No invoice to send' })
               log('error', `${customerOf(target.id)} — no invoice to send`)
