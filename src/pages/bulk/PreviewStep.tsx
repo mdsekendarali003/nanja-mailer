@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { listTemplates } from '../../lib/templates.js'
 import type { InvoiceNumbering } from '../../lib/numbering.js'
 import { money, shortDate } from '../../lib/api.js'
@@ -71,14 +71,14 @@ export function PreviewStep({
             {records.map((w) => {
               if (!w.flags.create) return null
               const preview = previews.find((p) => p.id === w.record.id)
-              const total = preview ? preview.payload.line_items.reduce((s, li) => s + li.cost * li.qty, 0) : 0
+              const total = preview ? preview.payload.line_items.reduce((s, li) => s + li.cost * li.quantity, 0) : 0
               return (
                 <div key={w.record.id} className={`rounded-lg border p-4 ${isUnmatched(w) ? 'border-red-200 bg-red-50' : 'border-slate-200'}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">{w.record.customerName}</p>
                       <p className="text-xs text-slate-500">
-                        {w.record.email} · client {w.client.clientName ?? w.client.status}
+                        {w.record.email} Â· client {w.client.clientName ?? w.client.status}
                       </p>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-slate-600">
@@ -97,9 +97,9 @@ export function PreviewStep({
                     <div className="mt-3 text-xs">
                       <p className="text-slate-500">
                         Invoice <span className="font-mono text-slate-700">{preview.payload.number}</span>
-                        {preview.autoNumbered && <span className="text-slate-400"> (auto)</span>} · due{' '}
-                        <span className="font-mono text-slate-700">{shortDate(preview.payload.due_date)}</span> · terms{' '}
-                        <span className="font-mono text-slate-700">{preview.payload.terms || '—'}</span>
+                        {preview.autoNumbered && <span className="text-slate-400"> (auto)</span>} Â· due{' '}
+                        <span className="font-mono text-slate-700">{shortDate(preview.payload.due_date)}</span> Â· terms{' '}
+                        <span className="font-mono text-slate-700">{preview.payload.terms || 'â€”'}</span>
                       </p>
                       <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
                         <table className="w-full text-left">
@@ -116,10 +116,10 @@ export function PreviewStep({
                             {preview.payload.line_items.map((li, i) => (
                               <tr key={i} className="border-t border-slate-100">
                                 <td className="px-2 py-1">{li.notes}</td>
-                                <td className="px-2 py-1 font-mono text-[10px]">{li.product_key || '—'}</td>
-                                <td className="px-2 py-1 text-right">{li.qty}</td>
+                                <td className="px-2 py-1 font-mono text-[10px]">{li.product_key || 'â€”'}</td>
+                                <td className="px-2 py-1 text-right">{li.quantity}</td>
                                 <td className="px-2 py-1 text-right">{money(li.cost)}</td>
-                                <td className="px-2 py-1 text-right">{money(li.cost * li.qty)}</td>
+                                <td className="px-2 py-1 text-right">{money(li.cost * li.quantity)}</td>
                               </tr>
                             ))}
                             <tr className="border-t border-slate-200 font-semibold">
@@ -133,7 +133,7 @@ export function PreviewStep({
                       </div>
                     </div>
                   )}
-                  {isUnmatched(w) && <Badge tone="red">No client — this invoice will fail. Fix it in the Clients step.</Badge>}
+                  {isUnmatched(w) && <Badge tone="red">No client â€” this invoice will fail. Fix it in the Clients step.</Badge>}
                 </div>
               )
             })}
@@ -143,3 +143,5 @@ export function PreviewStep({
     </div>
   )
 }
+
+

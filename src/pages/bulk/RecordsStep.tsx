@@ -126,7 +126,7 @@ export function RecordsStep({
       <Card title="Bulk edit" subtitle="Set the item, unit price and quantity once — applied to every record.">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Input
-            label="Line item description"
+            label="Item name"
             value={bulkDescription}
             onChange={(e) => setBulkDescription(e.target.value)}
             placeholder="e.g. Monthly hosting"

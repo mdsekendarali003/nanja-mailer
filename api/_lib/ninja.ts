@@ -168,14 +168,16 @@ export function friendlyBody(bodyText: string): string {
   if (!trimmed) return ''
   try {
     const parsed = JSON.parse(trimmed) as { message?: string; Message?: string; error?: string; errors?: unknown }
-    if (parsed.message) return parsed.message
-    if (parsed.Message) return parsed.Message
+    if (parsed.message && !parsed.errors) return parsed.message
+    if (parsed.Message && !parsed.errors) return parsed.Message
     if (parsed.error) return parsed.error
-    if (parsed.errors) {
-      const messages = Object.values(parsed.errors as Record<string, unknown>)
-        .flat()
-        .filter((v): v is string => typeof v === 'string')
-      if (messages.length > 0) return messages.join('; ')
+    if (parsed.errors && typeof parsed.errors === 'object' && !Array.isArray(parsed.errors)) {
+      const messages: string[] = []
+      for (const [field, value] of Object.entries(parsed.errors as Record<string, unknown>)) {
+        const lines = Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []
+        if (lines.length > 0) messages.push(`${field}: ${lines.join('; ')}`)
+      }
+      if (messages.length > 0) return messages.join(' · ')
     }
   } catch {
     if (trimmed.length <= 200) return trimmed

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { InvoiceTemplate } from '../../../shared/types.js'
 import { apiPost, chunk } from '../../lib/api.js'
-import { bumpCount } from '../../lib/numbering.js'
+import { bumpCount, formatInvoiceNumber } from '../../lib/numbering.js'
 import type { InvoiceNumbering } from '../../lib/numbering.js'
 import { clearExecuteStatus, loadExecuteStatus, saveExecuteStatus } from '../../lib/wizard-session.js'
 import { useToast } from '../../context/ToastContext.js'
@@ -160,17 +160,32 @@ export function ExecuteStep({
               return
             }
             try {
-              const result = await apiPost<{ results: { id: string; ok: boolean; invoiceId?: string; invoiceNumber?: string; error?: { error: string } }[] }>('/api/ninja/invoices-create', {
-                items: [item],
-              })
-              const r = result.results[0]
-              if (r?.ok) {
-                update(target.id, { status: 'created', invoiceId: r.invoiceId, message: `Invoice ${r.invoiceNumber ?? ''} created` })
-                patchRecord(target.id, r.invoiceId ?? '')
-                if (item.autoNumbered) bumpCount(item.clientId)
-                log('success', `${customerOf(target.id)} — invoice ${r.invoiceNumber ?? '?'} (${r.invoiceId ?? 'no id'}) created`)
-              } else {
-                const errorMessage = r?.error?.error ?? 'unknown error'
+              let itemToSend = item
+              let didBump = false
+              let errorMessage = 'unknown error'
+              for (let attempt = 0; attempt < 3; attempt++) {
+                const result = await apiPost<{ results: { id: string; ok: boolean; invoiceId?: string; invoiceNumber?: string; error?: { error: string } }[] }>('/api/ninja/invoices-create', {
+                  items: [itemToSend],
+                })
+                const r = result.results[0]
+                if (r?.ok) {
+                  update(target.id, { status: 'created', invoiceId: r.invoiceId, message: `Invoice ${r.invoiceNumber ?? ''} created` })
+                  patchRecord(target.id, r.invoiceId ?? '')
+                  if (itemToSend.autoNumbered && !didBump) bumpCount(itemToSend.clientId)
+                  log('success', `${customerOf(target.id)} — invoice ${r.invoiceNumber ?? '?'} (${r.invoiceId ?? 'no id'}) created`)
+                  break
+                }
+                errorMessage = r?.error?.error ?? 'unknown error'
+                if (attempt < 2 && itemToSend.autoNumbered && /already been taken/i.test(errorMessage)) {
+                  didBump = true
+                  const next = bumpCount(itemToSend.clientId)
+                  itemToSend = { ...itemToSend, payload: { ...itemToSend.payload, number: formatInvoiceNumber(numbering.prefix, next) } }
+                  log('info', `${customerOf(target.id)} — number taken, retrying as ${itemToSend.payload.number}…`)
+                  continue
+                }
+                break
+              }
+              if (statusesRef.current.find((s) => s.id === target.id)?.status !== 'created') {
                 update(target.id, { status: 'error', message: errorMessage })
                 log('error', `${customerOf(target.id)} — create failed: ${errorMessage}`)
                 failed++

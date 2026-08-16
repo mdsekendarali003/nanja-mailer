@@ -35,7 +35,7 @@ export function buildInvoicePayload(record: InvoiceRecordData, template: Invoice
   const lineItems: NinjaLineItemPayload[] = record.lineItems.map((item) => {
     const payload: NinjaLineItemPayload = {
       cost: item.unitAmount,
-      qty: item.quantity,
+      quantity: item.quantity,
       notes: item.description,
     }
     const productKey = item.accountCode?.trim() || template?.accountCode?.trim()
@@ -51,7 +51,8 @@ export function buildInvoicePayload(record: InvoiceRecordData, template: Invoice
   if (record.reference?.trim()) payload.po_number = record.reference.trim()
   if (template?.supportMessage?.trim()) payload.terms = template.supportMessage.trim()
   if (record.dueDate?.trim()) {
-    payload.due_date = record.dueDate.trim()
+    const due = isoDate(record.dueDate)
+    if (due) payload.due_date = due
   } else {
     const termsDays = template?.paymentTermsDays
     if (termsDays && termsDays > 0) {

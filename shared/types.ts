@@ -46,7 +46,7 @@ export interface NinjaConnectionState {
 export interface NinjaLineItemPayload {
   product_key?: string
   cost: number
-  qty: number
+  quantity: number
   notes: string
 }
 

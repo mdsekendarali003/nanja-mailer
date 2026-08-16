@@ -48,7 +48,7 @@ describe('buildInvoicePayload', () => {
     expect(payload.date).toBe('2026-08-01')
     expect(payload.due_date).toBe('2026-08-15')
     expect(payload.terms).toBe('If you have any issues, contact support.')
-    expect(payload.line_items).toEqual([{ product_key: '4100', cost: 25, qty: 2, notes: 'Widget' }])
+    expect(payload.line_items).toEqual([{ product_key: '4100', cost: 25, quantity: 2, notes: 'Widget' }])
   })
 
   it('omits optional fields when absent', () => {
