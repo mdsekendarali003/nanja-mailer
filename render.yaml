@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: mailflow
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NINJA_API_URL
+        value: https://invoicing.co
+      - key: NINJA_API_TOKEN
+        sync: false
