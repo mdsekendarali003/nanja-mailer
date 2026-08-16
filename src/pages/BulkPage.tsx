@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { InvoiceRecordData, InvoiceTemplate } from '../../shared/types.js'
-import { listTemplates } from '../lib/templates.js'
+import { getTemplate, listTemplates } from '../lib/templates.js'
 import { readNumbering, saveNumbering, type InvoiceNumbering } from '../lib/numbering.js'
+import { clearWizardSession, loadWizardSession, saveWizardSession } from '../lib/wizard-session.js'
 import { Button, Card } from '../components/ui.js'
 import { money } from '../lib/api.js'
 import { hasInvalidRecords, hasUnmatchedNonSkipped, makeWizardRecord, type WizardRecord } from '../lib/wizard.js'
@@ -14,32 +15,45 @@ import { ExecuteStep } from './bulk/ExecuteStep.js'
 const STEP_NAMES = ['Source', 'Records', 'Clients', 'Preview', 'Execute']
 
 export default function BulkPage() {
-  const [step, setStep] = useState(0)
-  const [source, setSource] = useState<'csv' | 'emails' | null>(null)
-  const [records, setRecords] = useState<WizardRecord[]>([])
-  const [templateId, setTemplateId] = useState<string | null>(null)
-  const [template, setTemplate] = useState<InvoiceTemplate | undefined>(undefined)
-  const [numbering, setNumbering] = useState<InvoiceNumbering>(() => readNumbering())
+  const [initial] = useState(() => loadWizardSession())
+  const [step, setStep] = useState(initial?.step ?? 0)
+  const [source, setSource] = useState<'csv' | 'emails' | null>(initial?.source ?? null)
+  const [records, setRecords] = useState<WizardRecord[]>(initial?.records ?? [])
+  const [templateId, setTemplateId] = useState<string | null>(initial?.templateId ?? null)
+  const [template, setTemplate] = useState<InvoiceTemplate | undefined>(() => {
+    const id = initial?.templateId
+    return id ? getTemplate(id) : undefined
+  })
+  const [numbering, setNumbering] = useState<InvoiceNumbering>(() => initial?.numbering ?? readNumbering())
+  const [resumed, setResumed] = useState<boolean>(() => !!(initial && initial.records.length > 0))
 
   useEffect(() => {
     saveNumbering(numbering)
   }, [numbering])
 
+  useEffect(() => {
+    saveWizardSession({ step, source, records, templateId, numbering })
+  }, [step, source, records, templateId, numbering])
+
   const onSourceRecords = (incoming: InvoiceRecordData[], src: 'csv' | 'emails') => {
+    clearWizardSession()
     setSource(src)
     setRecords(incoming.map(makeWizardRecord))
     const t = listTemplates()
     setTemplateId(t[0]?.id ?? null)
     setTemplate(t[0])
     setStep(1)
+    setResumed(false)
   }
 
   const restart = () => {
+    clearWizardSession()
     setStep(0)
     setSource(null)
     setRecords([])
     setTemplateId(null)
     setTemplate(undefined)
+    setResumed(false)
   }
 
   const canContinue = (): boolean => {
@@ -63,6 +77,18 @@ export default function BulkPage() {
       <p className="mt-1 text-sm text-slate-500">
         Import sales records from a CSV or pasted emails, match them to Invoice Ninja clients, review the invoices, and create them.
       </p>
+
+      {resumed && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
+          <span>
+            Resumed your previous import — {records.length} record(s) · step {Math.min(step + 1, STEP_NAMES.length)} of {STEP_NAMES.length}
+            {step === 4 && ' — invoices may have been partially created, sent or emailed; review before re-running.'}
+          </span>
+          <button onClick={restart} className="font-medium underline">
+            Start fresh
+          </button>
+        </div>
+      )}
 
       <ol className="mt-5 flex items-center gap-2 text-sm">
         {STEP_NAMES.map((name, i) => (

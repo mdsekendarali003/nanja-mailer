@@ -1,9 +1,7 @@
 import type { ApiHandler } from '../_lib/types.js'
 import { jsonError } from '../_lib/types.js'
-import { mapNinjaError, ninjaApiCallWithRetry, readNinjaConfig } from '../_lib/ninja.js'
+import { fetchClientInvoices, readNinjaConfig } from '../_lib/ninja.js'
 
-const PER_PAGE = 500
-const MAX_PAGES = 20
 const MAX_CLIENTS = 100
 const CONCURRENCY = 3
 
@@ -27,24 +25,9 @@ const handler: ApiHandler = async (req, res) => {
     const batch = ids.slice(i, i + CONCURRENCY)
     await Promise.all(
       batch.map(async (id) => {
-        let total = 0
-        try {
-          for (let page = 1; page <= MAX_PAGES; page++) {
-            const result = await ninjaApiCallWithRetry(config, `/invoices?client_id=${encodeURIComponent(id)}&per_page=${PER_PAGE}&page=${page}`)
-            if (result.status !== 200) {
-              const mapped = mapNinjaError(result.status, result.text)
-              console.warn(`invoice-counts client=${id}: ${mapped.errorCode} ${mapped.error}`)
-              failed.push(id)
-              return
-            }
-            const raw = (result.json as unknown[] | undefined) || []
-            total += raw.length
-            if (raw.length < PER_PAGE) break
-          }
-          counts[id] = total
-        } catch {
-          failed.push(id)
-        }
+        const { invoices, ok } = await fetchClientInvoices(config, id)
+        if (ok) counts[id] = invoices.length
+        else failed.push(id)
       }),
     )
   }

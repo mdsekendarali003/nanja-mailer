@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../context/AppContext.js'
 import { Badge, Button, Card, Input, Spinner } from '../components/ui.js'
 
@@ -7,6 +7,12 @@ export default function SettingsPage() {
   const [instanceUrl, setInstanceUrl] = useState('')
   const [token, setToken] = useState('')
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (ninjaSettings?.configured && ninjaSettings.baseUrl && !instanceUrl) {
+      setInstanceUrl(ninjaSettings.baseUrl)
+    }
+  }, [ninjaSettings, instanceUrl])
 
   const submit = async () => {
     setSaving(true)

@@ -18,6 +18,15 @@ export interface CreateItem {
   autoNumbered?: boolean
 }
 
+export type ExecuteItemStatus = 'pending' | 'created' | 'sent' | 'emailed' | 'error'
+
+export interface ExecuteStatusItem {
+  id: string
+  status: ExecuteItemStatus
+  message?: string
+  invoiceId?: string
+}
+
 export function makeWizardRecord(record: InvoiceRecordData): WizardRecord {
   const recordWithErrors = { ...record, errors: validateRecord(record) }
   return {

@@ -1,16 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { InvoiceTemplate } from '../../../shared/types.js'
 import { apiPost, chunk } from '../../lib/api.js'
 import { bumpCount } from '../../lib/numbering.js'
 import type { InvoiceNumbering } from '../../lib/numbering.js'
+import { clearExecuteStatus, loadExecuteStatus, saveExecuteStatus } from '../../lib/wizard-session.js'
 import { useToast } from '../../context/ToastContext.js'
-import { buildCreateItems, type WizardRecord } from '../../lib/wizard.js'
+import { buildCreateItems, type ExecuteItemStatus, type ExecuteStatusItem, type WizardRecord } from '../../lib/wizard.js'
 import { Badge, Button, Card, EmptyState, Spinner } from '../../components/ui.js'
 
 type Phase = 'create' | 'mark_sent' | 'email'
-type ItemStatus = 'pending' | 'created' | 'sent' | 'emailed' | 'error'
-type RecordStatus = { id: string; status: ItemStatus; message?: string; invoiceId?: string }
 
 export function ExecuteStep({
   records,
@@ -25,7 +24,22 @@ export function ExecuteStep({
 }) {
   const { toast } = useToast()
   const [running, setRunning] = useState(false)
-  const [statuses, setStatuses] = useState<RecordStatus[]>(() => records.filter((w) => w.flags.create).map((w) => ({ id: w.record.id, status: 'pending' })))
+  const [statuses, setStatuses] = useState<ExecuteStatusItem[]>(() => {
+    const saved = loadExecuteStatus()
+    const base: ExecuteStatusItem[] =
+      saved && saved.statuses.length > 0
+        ? saved.statuses
+        : records.filter((w) => w.flags.create).map((w) => ({ id: w.record.id, status: 'pending' as ExecuteItemStatus }))
+    return base.map((s) => {
+      const w = records.find((r) => r.record.id === s.id)
+      if (w?.invoiceId && (s.status === 'pending' || s.status === 'error')) {
+        return { ...s, status: 'created' as ExecuteItemStatus, invoiceId: w.invoiceId, message: s.message ?? 'Invoice created' }
+      }
+      return s
+    })
+  })
+  const [interrupted, setInterrupted] = useState(() => !!loadExecuteStatus()?.interrupted)
+  const [verifying, setVerifying] = useState(false)
   const [phase, setPhase] = useState<Phase | null>(null)
   const [progress, setProgress] = useState(0)
   const [total, setTotal] = useState(0)
@@ -33,7 +47,16 @@ export function ExecuteStep({
 
   const items = useMemo(() => buildCreateItems(records, template, numbering), [records, template, numbering])
 
-  const update = (id: string, patch: Partial<RecordStatus>) => {
+  const statusesRef = useRef(statuses)
+  useEffect(() => {
+    statusesRef.current = statuses
+  }, [statuses])
+
+  useEffect(() => {
+    saveExecuteStatus({ statuses, interrupted: interrupted || phase !== null || running })
+  }, [statuses, interrupted, phase, running])
+
+  const update = (id: string, patch: Partial<ExecuteStatusItem>) => {
     setStatuses((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
   }
 
@@ -41,8 +64,49 @@ export function ExecuteStep({
     setRecords((prev) => prev.map((w) => (w.record.id === id ? { ...w, invoiceId } : w)))
   }
 
+  useEffect(() => {
+    const saved = loadExecuteStatus()
+    if (!saved || saved.statuses.length === 0) return
+    const candidates = items.filter((i) => {
+      const s = statusesRef.current.find((x) => x.id === i.id)
+      const w = records.find((r) => r.record.id === i.id)
+      return s && s.status === 'pending' && !w?.invoiceId && !!i.payload.number && !s.message?.startsWith('Checked')
+    })
+    if (candidates.length === 0) return
+    let cancelled = false
+    setVerifying(true)
+    ;(async () => {
+      try {
+        const result = await apiPost<{ results: { key: string; found: boolean; checked: boolean; invoiceId?: string }[] }>('/api/ninja/invoices-check', {
+          items: candidates.map((i) => ({ key: i.id, clientId: i.clientId, number: i.payload.number as string })),
+        })
+        if (cancelled) return
+        for (const r of result.results) {
+          if (r.found && r.invoiceId) {
+            const item = candidates.find((c) => c.id === r.key)
+            update(r.key, { status: 'created', invoiceId: r.invoiceId, message: 'Recovered — already created in Invoice Ninja' })
+            patchRecord(r.key, r.invoiceId)
+            if (item && numbering.enabled) bumpCount(item.clientId)
+          } else if (r.checked) {
+            update(r.key, { status: 'pending', message: 'Checked — not yet created' })
+          } else {
+            update(r.key, { status: 'pending', message: 'Could not verify — check Invoice Ninja before running' })
+          }
+        }
+      } catch {
+        // leave records pending; the user can review before running
+      } finally {
+        if (!cancelled) setVerifying(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const runPhase = async (p: Phase) => {
-    const targets = statuses.filter((s) => {
+    const targets = statusesRef.current.filter((s) => {
       if (p === 'create') return s.status === 'pending' || s.status === 'error'
       if (p === 'mark_sent') return s.status === 'created' || s.status === 'error'
       return s.status === 'sent' || s.status === 'created' || s.status === 'error'
@@ -117,24 +181,28 @@ export function ExecuteStep({
   const runAll = async () => {
     setRunning(true)
     setDone(false)
+    setInterrupted(false)
     await runPhase('create')
-    if (statuses.some((s) => s.status === 'created')) await runPhase('mark_sent')
-    if (statuses.some((s) => s.status === 'sent' || s.status === 'created')) await runPhase('email')
+    if (statusesRef.current.some((s) => s.status === 'created')) await runPhase('mark_sent')
+    if (statusesRef.current.some((s) => s.status === 'sent' || s.status === 'created')) await runPhase('email')
     setDone(true)
     setRunning(false)
+    clearExecuteStatus()
   }
 
   const retry = async () => {
     setDone(false)
     setRunning(true)
+    setInterrupted(false)
     await runPhase('create')
     await runPhase('mark_sent')
     await runPhase('email')
     setDone(true)
     setRunning(false)
+    clearExecuteStatus()
   }
 
-  const count = (s: ItemStatus) => statuses.filter((x) => x.status === s).length
+  const count = (s: ExecuteItemStatus) => statuses.filter((x) => x.status === s).length
   const hasErrors = statuses.some((s) => s.status === 'error')
 
   return (
@@ -152,15 +220,22 @@ export function ExecuteStep({
         </div>
       }
     >
-      {(phase || running) && (
+      {(phase || running || verifying) && (
         <div className="mb-4 flex items-center gap-3 text-sm text-slate-600">
           <Spinner />
           <span>
+            {verifying && 'Checking Invoice Ninja for invoices created before the interruption…'}
             {phase === 'create' && 'Creating invoices'}
             {phase === 'mark_sent' && 'Marking invoices sent'}
             {phase === 'email' && 'Emailing invoices'}
-            … {progress}/{total}
+            {phase && `… ${progress}/${total}`}
           </span>
+        </div>
+      )}
+      {interrupted && !running && (
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Your previous run was interrupted. Invoices that were already created are recovered automatically — review the table, then press{' '}
+          <span className="font-medium">Start</span> to continue from where it left off.
         </div>
       )}
       <div className="mb-4 grid gap-3 sm:grid-cols-4">

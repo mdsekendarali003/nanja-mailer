@@ -1,6 +1,6 @@
 import type { ApiHandler } from '../_lib/types.js'
 import type { NinjaClientInfo } from '../../shared/types.js'
-import { mapNinjaError, ninjaApiCallWithRetry, readNinjaConfig } from '../_lib/ninja.js'
+import { mapNinjaError, ninjaApiCallWithRetry, parseNinjaList, readNinjaConfig } from '../_lib/ninja.js'
 import { jsonError } from '../_lib/types.js'
 
 const PER_PAGE = 500
@@ -32,12 +32,12 @@ const handler: ApiHandler = async (req, res) => {
         jsonError(res, result.status >= 500 ? 502 : 400, mapped.error, mapped.errorCode, mapped.retryable)
         return
       }
-      const raw = (result.json as RawClient[] | undefined) || []
-      for (const client of raw) {
+      const { items, totalPages } = parseNinjaList<RawClient>(result)
+      for (const client of items) {
         const contact = client.contacts?.[0]
         clients.push({ id: client.id || '', name: client.name || '', email: contact?.email?.trim() || undefined })
       }
-      if (raw.length < PER_PAGE) break
+      if (totalPages !== undefined ? page >= totalPages : items.length < PER_PAGE) break
     }
     res.json({ clients })
   } catch {

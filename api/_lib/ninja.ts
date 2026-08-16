@@ -54,6 +54,45 @@ export interface NinjaResult {
   text: string
 }
 
+export interface NinjaListResult<T> {
+  items: T[]
+  totalPages?: number
+}
+
+export function parseNinjaList<T>(result: NinjaResult): NinjaListResult<T> {
+  const json = result.json as unknown
+  if (Array.isArray(json)) return { items: json as T[] }
+  if (json && typeof json === 'object') {
+    const obj = json as { data?: unknown; meta?: { pagination?: { total_pages?: unknown; current_page?: unknown } } }
+    const items = Array.isArray(obj.data) ? (obj.data as T[]) : []
+    const rawTotal = obj.meta?.pagination?.total_pages
+    const totalPages = typeof rawTotal === 'number' && Number.isFinite(rawTotal) ? rawTotal : undefined
+    return { items, totalPages }
+  }
+  return { items: [] }
+}
+
+export interface NinjaInvoiceRef {
+  id: string
+  number?: string
+}
+
+export async function fetchClientInvoices(config: NinjaConfig, clientId: string): Promise<{ invoices: NinjaInvoiceRef[]; ok: boolean }> {
+  const invoices: NinjaInvoiceRef[] = []
+  for (let page = 1; page <= 20; page++) {
+    const result = await ninjaApiCallWithRetry(config, `/invoices?client_id=${encodeURIComponent(clientId)}&per_page=500&page=${page}`)
+    if (result.status !== 200) return { invoices: [], ok: false }
+    const { items, totalPages } = parseNinjaList<{ id?: unknown; number?: unknown }>(result)
+    for (const inv of items) {
+      const id = typeof inv.id === 'string' ? inv.id : String(inv.id ?? '')
+      const number = typeof inv.number === 'string' ? inv.number : undefined
+      if (id) invoices.push({ id, number })
+    }
+    if (totalPages !== undefined ? page >= totalPages : items.length < 500) break
+  }
+  return { invoices, ok: true }
+}
+
 export async function ninjaApiCall(config: NinjaConfig, path: string, options: { method?: string; body?: unknown } = {}): Promise<NinjaResult> {
   const base = config.baseUrl.replace(/\/+$/, '')
   const headers: Record<string, string> = {
